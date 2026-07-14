@@ -1,4 +1,4 @@
-﻿# src/parser_kufar.py
+# src/parser_kufar.py
 
 import time
 import re
@@ -15,6 +15,7 @@ class KufarParser:
     """Парсер для Kufar.by — земельные участки"""
     
     BASE_URL = "https://kufar.by"
+    # ИСПРАВЛЕНО: правильный URL с /l/ в пути
     SEARCH_URL = "https://kufar.by/l/r~minskaya/zemelnye-uchastki"
     
     def __init__(self):
@@ -38,6 +39,7 @@ class KufarParser:
             params.append(f"ea={FILTERS['area_max']}")
         
         # Сортировка по дате (новые сверху)
+        # ИСПРАВЛЕНО: было sort=1st, теперь sort=lst
         params.append("sort=lst")
         
         # Пагинация
