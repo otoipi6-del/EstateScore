@@ -4,7 +4,7 @@ import os
 from typing import List, Dict
 from datetime import datetime
 
-from config import OUTPUT
+from config import OUTPUT, ANALYSIS
 
 
 class HTMLGenerator:
