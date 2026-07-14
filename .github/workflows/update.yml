@@ -1,0 +1,41 @@
+name: Daily EstateScore Update
+
+# Когда запускать: по расписанию и вручную
+on:
+  schedule:
+    # Запуск каждый день в 9:00 утра по UTC (днём в Беларуси)
+    - cron: '0 9 * * *'
+  workflow_dispatch:  # Позволяет запустить вручную на вкладке Actions
+
+jobs:
+  run_parser:
+    name: Run parser and generate site
+    runs-on: ubuntu-latest  # Используем виртуальную машину с Linux
+
+    steps:
+      # 1. Загружаем код из репозитория
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Устанавливаем Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. Устанавливаем зависимости из requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 4. Запускаем главный скрипт
+      - name: Build site
+        run: python build.py
+
+      # 5. Сохраняем изменения (новый index.html)
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add docs/index.html data/*.csv data/*.json
+          git commit -m "Автоматическое обновление данных" || echo "No changes to commit"
+          git push
