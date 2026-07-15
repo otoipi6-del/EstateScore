@@ -1,39 +1,28 @@
 # config.py
 
-# ===== НАСТРОЙКИ ПОИСКА =====
 FILTERS = {
-    "offer_type": "sale",           # sale (продажа)
-    "object_type": "plot",          # plot (участок)
-    "region": "belarus",            # Вся Беларусь!
-    "area_min": 5,                 # Минимальная площадь (соток)
-    "area_max": 100,                 # Максимальная площадь (соток)
-    "price_max": None,              # Максимальная цена
-    "communications": ["газ", "вода", "электричество"],
-    "plot_type": None,            # ИЖС
+    "offer_type": "sale",
+    "object_type": "plot",
+    "region": "belarus",
+    "area_min": 0,
+    "area_max": 1000,
+    "price_max": None,
+    "communications": [],
+    "plot_type": None,
     "sort": "date_asc",
 }
 
-# ===== НАСТРОЙКИ АНАЛИЗА =====
 ANALYSIS = {
-    "max_price_per_are": 10000,      # Макс. цена за сотку (BYN)
-    "min_discount_percent": 15,     # Минимальный дисконт для метки "выгодный"
+    "max_price_per_are": 100000,
+    "min_discount_percent": 0,
 }
 
-# ===== НАСТРОЙКИ ПАРСЕРА =====
 PARSER = {
-    "max_pages": 10,                # Больше страниц для всей Беларуси
+    "max_pages": 3,
     "delay_between_requests": 1.0,
     "timeout": 15,
 }
 
-# ===== НАСТРОЙКИ КАРТЫ =====
-MAP = {
-    "center_lat": 53.9,
-    "center_lng": 27.56,
-    "zoom": 7,                      # Для всей Беларуси (от 6 до 8)
-}
-
-# ===== НАСТРОЙКИ ВЫВОДА =====
 OUTPUT = {
     "csv_file": "data/offers.csv",
     "json_file": "data/offers.json",
