@@ -3,19 +3,18 @@
 import time
 import re
 from typing import List, Dict, Optional
-from urllib.parse import urljoin, urlencode
 
 import requests
 from bs4 import BeautifulSoup
 
-from config import FILTERS, HEADERS, PARSER
+from config import HEADERS, PARSER, URLS
 
 
 class RealtByParser:
-    """Парсер для Realt.by — земельные участки"""
+    """Парсер для Realt.by через API"""
     
     BASE_URL = "https://realt.by"
-    SEARCH_URL = "https://realt.by/real-estate/for-sale/plots/"
+    SEARCH_URL = URLS.get("realt", "")
     
     def __init__(self):
         self.session = requests.Session()
@@ -23,18 +22,7 @@ class RealtByParser:
         self.offers = []
     
     def build_search_url(self, page: int = 1) -> str:
-        params = {
-            "page": page,
-        }
-        
-        if FILTERS.get("area_min"):
-            params["area[min]"] = FILTERS["area_min"]
-        if FILTERS.get("area_max"):
-            params["area[max]"] = FILTERS["area_max"]
-        if FILTERS.get("price_max"):
-            params["price[max]"] = FILTERS["price_max"]
-        
-        return f"{self.SEARCH_URL}?{urlencode(params)}"
+        return f"{self.SEARCH_URL}{page}"
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
         try:
@@ -79,21 +67,22 @@ class RealtByParser:
         try:
             response = self.session.get(url, timeout=PARSER["timeout"])
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, "lxml")
+            data = response.json()
             
-            cards = soup.find_all("div", class_="listing-card")
-            if not cards:
-                cards = soup.find_all("div", class_="listing-item")
+            # Парсим JSON от API
+            items = data.get("items", [])
             
-            for card in cards:
-                link_elem = card.find("a", class_="link")
-                if not link_elem:
-                    continue
+            for item in items:
+                offer_data = {
+                    "source": "realt.by",
+                    "url": f"{self.BASE_URL}{item.get('url', '')}",
+                    "price": item.get("price", {}).get("amount"),
+                    "address": item.get("address", {}).get("full"),
+                    "area": item.get("area", {}).get("total"),
+                    "region": "belarus",
+                }
                 
-                offer_url = urljoin(self.BASE_URL, link_elem.get("href"))
-                offer_data = self.parse_offer_card(offer_url)
-                
-                if offer_data:
+                if offer_data["price"] and offer_data["address"]:
                     offers.append(offer_data)
                 
                 time.sleep(PARSER["delay_between_requests"] / 2)
@@ -109,6 +98,7 @@ class RealtByParser:
         for page in range(1, PARSER["max_pages"] + 1):
             print(f"  Страница {page}...")
             url = self.build_search_url(page)
+            print(f"  URL: {url}")
             page_offers = self.parse_listing_page(url)
             all_offers.extend(page_offers)
             print(f"    Найдено {len(page_offers)} объявлений")
