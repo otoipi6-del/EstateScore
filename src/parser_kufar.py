@@ -3,19 +3,19 @@
 import time
 import re
 from typing import List, Dict, Optional
-from urllib.parse import urljoin, urlencode
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
-from config import FILTERS, HEADERS, PARSER
+from config import HEADERS, PARSER, URLS
 
 
 class KufarParser:
     """Парсер для Kufar.by — земельные участки"""
     
     BASE_URL = "https://kufar.by"
-    SEARCH_URL = "https://kufar.by/l/r~belarus/zemelnye-uchastki"
+    SEARCH_URL = URLS.get("kufar", "")
     
     def __init__(self):
         self.session = requests.Session()
@@ -23,18 +23,7 @@ class KufarParser:
         self.offers = []
     
     def build_search_url(self, page: int = 1) -> str:
-        params = {
-            "cd": "1",
-            "p": page,
-            "sort": "lst",
-        }
-        
-        if FILTERS.get("area_min"):
-            params["sa"] = FILTERS["area_min"]
-        if FILTERS.get("area_max"):
-            params["ea"] = FILTERS["area_max"]
-        
-        return f"{self.SEARCH_URL}?{urlencode(params)}"
+        return self.SEARCH_URL
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
         try:
@@ -114,6 +103,7 @@ class KufarParser:
         for page in range(1, PARSER["max_pages"] + 1):
             print(f"  Страница {page}...")
             url = self.build_search_url(page)
+            print(f"  URL: {url}")
             page_offers = self.parse_listing_page(url)
             all_offers.extend(page_offers)
             print(f"    Найдено {len(page_offers)} объявлений")
