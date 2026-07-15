@@ -18,7 +18,7 @@ ANALYSIS = {
 }
 
 PARSER = {
-    "max_pages": 3,
+    "max_pages": 5,
     "delay_between_requests": 1.0,
     "timeout": 15,
 }
@@ -37,10 +37,4 @@ OUTPUT = {
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-}
-
-# ПРЯМЫЕ ССЫЛКИ НА API
-URLS = {
-    "realt": "https://realt.by/api/v1/search/real-estate/?type=sale&object=plot&page=",
-    "kufar": "https://kufar.by/api/search?query=земельные%20участки&region=belarus&page=",
 }
