@@ -1,11 +1,8 @@
-# .github/workflows/update.yml
 name: EstateScore Auto Update
 
 on:
   schedule:
-    # Запуск каждый час
     - cron: '0 * * * *'
-  # Ручной запуск
   workflow_dispatch:
 
 permissions:
@@ -26,11 +23,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          # Устанавливаем Chromium и ChromeDriver для Selenium
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
+        run: pip install -r requirements.txt
 
       - name: Build site
         run: python build.py
