@@ -15,7 +15,6 @@ class KufarParser:
     """Парсер для Kufar.by — земельные участки"""
     
     BASE_URL = "https://kufar.by"
-    # РАБОЧИЙ URL ДЛЯ СТАТИЧЕСКОЙ ВЕРСИИ
     SEARCH_URL = "https://kufar.by/l/r~belarus/zemelnye-uchastki"
     
     def __init__(self):
@@ -24,11 +23,10 @@ class KufarParser:
         self.offers = []
     
     def build_search_url(self, page: int = 1) -> str:
-        """Формирует URL для поиска"""
         params = {
-            "cd": "1",           # продажа
-            "p": page,           # страница
-            "sort": "lst",       # новые сверху
+            "cd": "1",
+            "p": page,
+            "sort": "lst",
         }
         
         if FILTERS.get("area_min"):
@@ -39,13 +37,11 @@ class KufarParser:
         return f"{self.SEARCH_URL}?{urlencode(params)}"
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
-        """Парсит карточку объявления"""
         try:
             response = self.session.get(card_url, timeout=PARSER["timeout"])
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
-            # --- Цена ---
             price_elem = soup.find("span", class_="price")
             price = None
             if price_elem:
@@ -54,11 +50,9 @@ class KufarParser:
                 if price_match:
                     price = int(price_match.group(1).replace(" ", ""))
             
-            # --- Адрес ---
             address_elem = soup.find("div", class_="address")
             address = address_elem.text.strip() if address_elem else ""
             
-            # --- Площадь ---
             area = None
             params = soup.find_all("div", class_="param")
             for param in params:
@@ -85,7 +79,6 @@ class KufarParser:
             return None
     
     def parse_listing_page(self, url: str) -> List[Dict]:
-        """Парсит страницу со списком"""
         offers = []
         
         try:
@@ -93,7 +86,6 @@ class KufarParser:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
-            # Пробуем разные классы
             cards = soup.find_all("div", class_="listing-item")
             if not cards:
                 cards = soup.find_all("div", class_="listing-card")
@@ -117,7 +109,6 @@ class KufarParser:
         return offers
     
     def run(self) -> List[Dict]:
-        """Запускает парсинг"""
         all_offers = []
         
         for page in range(1, PARSER["max_pages"] + 1):
