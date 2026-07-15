@@ -12,22 +12,11 @@ from config import FILTERS, HEADERS, PARSER
 
 
 class RealtByParser:
-    """Парсер для Realt.by — земельные участки (все регионы)"""
+    """Парсер для Realt.by — земельные участки"""
     
     BASE_URL = "https://realt.by"
-    # ИСПРАВЛЕНАЯ ССЫЛКА НА ПОИСК УЧАСТКОВ
+    # ПРОВЕРЕННЫЙ РАБОЧИЙ URL
     SEARCH_URL = "https://realt.by/real-estate/for-sale/plots/"
-    
-    # Карта регионов Realt.by
-    REGION_CODES = {
-        "minskaya": "minskaya",
-        "brestskaya": "brestskaya",
-        "vitebskaya": "vitebskaya",
-        "gomelskaya": "gomelskaya",
-        "grodnenskaya": "grodnenskaya",
-        "mogilevskaya": "mogilevskaya",
-        "belarus": None,
-    }
     
     def __init__(self):
         self.session = requests.Session()
@@ -35,29 +24,23 @@ class RealtByParser:
         self.offers = []
     
     def build_search_url(self, page: int = 1) -> str:
-        """Формирует URL для поиска с фильтрами"""
+        """Формирует URL для поиска"""
         params = {
             "page": page,
-            "sort": FILTERS["sort"],
         }
         
-        # Добавляем фильтры в параметры
-        if FILTERS.get("price_max"):
-            params["price[max]"] = FILTERS["price_max"]
+        # Добавляем фильтры
         if FILTERS.get("area_min"):
             params["area[min]"] = FILTERS["area_min"]
         if FILTERS.get("area_max"):
             params["area[max]"] = FILTERS["area_max"]
-        
-        # Добавляем регион только если не "belarus"
-        region = FILTERS.get("region")
-        if region and region != "belarus" and region in self.REGION_CODES:
-            params["region"] = self.REGION_CODES[region]
+        if FILTERS.get("price_max"):
+            params["price[max]"] = FILTERS["price_max"]
         
         return f"{self.SEARCH_URL}?{urlencode(params)}"
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
-        """Парсит детальную информацию из карточки объявления"""
+        """Парсит карточку объявления"""
         try:
             response = self.session.get(card_url, timeout=PARSER["timeout"])
             response.raise_for_status()
@@ -84,56 +67,21 @@ class RealtByParser:
                 if area_match:
                     area = float(area_match.group(1))
             
-            # --- Описание ---
-            desc_elem = soup.find("div", class_="description")
-            description = desc_elem.text.strip() if desc_elem else ""
-            
-            # --- Характеристики ---
-            specs = {}
-            spec_rows = soup.find_all("tr", class_="spec")
-            for row in spec_rows:
-                key_elem = row.find("td", class_="spec__name")
-                val_elem = row.find("td", class_="spec__value")
-                if key_elem and val_elem:
-                    specs[key_elem.text.strip()] = val_elem.text.strip()
-            
-            # --- Проверка коммуникаций ---
-            full_text = (description + " " + " ".join(specs.values())).lower()
-            communications_ok = all(
-                comm.lower() in full_text 
-                for comm in FILTERS.get("communications", [])
-            )
-            
-            # --- Проверка типа участка (ИЖС) ---
-            is_izhs = (
-                "ижс" in full_text or 
-                "индивидуальное жилищное" in full_text
-            )
-            plot_type_ok = not FILTERS.get("plot_type") == "izhs" or is_izhs
-            
-            if not communications_ok or not plot_type_ok:
-                return None
-            
             return {
                 "source": "realt.by",
                 "url": card_url,
                 "price": price,
                 "address": address,
-                "region": "belarus",
                 "area": area,
-                "description": description,
-                "specifications": specs,
-                "communications_ok": communications_ok,
-                "is_izhs": is_izhs,
-                "raw_text": full_text,
+                "region": "belarus",
             }
             
         except Exception as e:
-            print(f"  Ошибка при парсинге {card_url}: {e}")
+            print(f"  Ошибка: {e}")
             return None
     
     def parse_listing_page(self, url: str) -> List[Dict]:
-        """Парсит страницу со списком объявлений"""
+        """Парсит страницу со списком"""
         offers = []
         
         try:
@@ -141,7 +89,7 @@ class RealtByParser:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
-            # Ищем карточки на странице
+            # Пробуем разные классы для карточек
             cards = soup.find_all("div", class_="listing-card")
             if not cards:
                 cards = soup.find_all("div", class_="listing-item")
