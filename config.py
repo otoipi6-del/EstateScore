@@ -23,7 +23,6 @@ PARSER = {
     "timeout": 15,
 }
 
-# ===== НАСТРОЙКИ КАРТЫ =====
 MAP = {
     "center_lat": 53.9,
     "center_lng": 27.56,
