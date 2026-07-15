@@ -15,7 +15,8 @@ class KufarParser:
     """Парсер для Kufar.by — земельные участки (все регионы)"""
     
     BASE_URL = "https://kufar.by"
-    SEARCH_URL = "https://kufar.by/l/r~belarus/zemelnye-uchastki"  # Вся Беларусь
+    # ИСПРАВЛЕННАЯ ССЫЛКА НА ПОИСК УЧАСТКОВ
+    SEARCH_URL = "https://kufar.by/l/r~belarus/zemelnye-uchastki"
     
     REGION_CODES = {
         "minskaya": "minskaya",
@@ -46,12 +47,11 @@ class KufarParser:
         
         params.append("sort=lst")
         params.append(f"p={page}")
-        params.append("cm=13010")
+        params.append("cm=13010")  # Код для земельных участков
         
         # Регион (если не вся Беларусь)
         region = FILTERS.get("region")
         if region and region != "belarus" and region in self.REGION_CODES:
-            # Для Kufar регион добавляется в URL
             region_code = self.REGION_CODES[region]
             search_url = f"https://kufar.by/l/r~{region_code}/zemelnye-uchastki"
         else:
@@ -81,13 +81,6 @@ class KufarParser:
             address_elem = soup.find("div", class_="address")
             if address_elem:
                 address = address_elem.text.strip()
-            
-            # --- Регион ---
-            region = "other"
-            for key, code in self.REGION_CODES.items():
-                if code and code.lower() in address.lower():
-                    region = key
-                    break
             
             # --- Площадь ---
             area = None
@@ -136,10 +129,8 @@ class KufarParser:
                 "url": card_url,
                 "price": price,
                 "address": address,
-                "region": region,
+                "region": "belarus",
                 "area": area,
-                "lat": None,
-                "lng": None,
                 "description": description,
                 "specifications": specifications,
                 "communications_ok": communications_ok,
@@ -160,7 +151,10 @@ class KufarParser:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
-            cards = soup.find_all("div", class_="listing-item")
+            # Ищем карточки на странице
+            cards = soup.find_all("div", class_="listing-card")
+            if not cards:
+                cards = soup.find_all("div", class_="listing-item")
             
             for card in cards:
                 link_elem = card.find("a", class_="link")
