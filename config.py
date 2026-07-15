@@ -5,7 +5,7 @@ FILTERS = {
     "offer_type": "sale",           # sale (продажа)
     "object_type": "plot",          # plot (участок)
     "region": "belarus",            # Вся Беларусь!
-    "area_min": 10,                 # Минимальная площадь (соток)
+    "area_min": 5,                 # Минимальная площадь (соток)
     "area_max": 20,                 # Максимальная площадь (соток)
     "price_max": None,              # Максимальная цена
     "communications": ["газ", "вода", "электричество"],
