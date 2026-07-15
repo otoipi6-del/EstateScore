@@ -9,7 +9,7 @@ FILTERS = {
     "area_max": 20,                 # Максимальная площадь (соток)
     "price_max": None,              # Максимальная цена
     "communications": ["газ", "вода", "электричество"],
-    "plot_type": "izhs",            # ИЖС
+    "plot_type": None,            # ИЖС
     "sort": "date_asc",
 }
 
