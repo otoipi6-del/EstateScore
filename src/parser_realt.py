@@ -15,7 +15,6 @@ class RealtByParser:
     """Парсер для Realt.by — земельные участки"""
     
     BASE_URL = "https://realt.by"
-    # ПРОВЕРЕННЫЙ РАБОЧИЙ URL
     SEARCH_URL = "https://realt.by/real-estate/for-sale/plots/"
     
     def __init__(self):
@@ -24,12 +23,10 @@ class RealtByParser:
         self.offers = []
     
     def build_search_url(self, page: int = 1) -> str:
-        """Формирует URL для поиска"""
         params = {
             "page": page,
         }
         
-        # Добавляем фильтры
         if FILTERS.get("area_min"):
             params["area[min]"] = FILTERS["area_min"]
         if FILTERS.get("area_max"):
@@ -40,13 +37,11 @@ class RealtByParser:
         return f"{self.SEARCH_URL}?{urlencode(params)}"
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
-        """Парсит карточку объявления"""
         try:
             response = self.session.get(card_url, timeout=PARSER["timeout"])
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
-            # --- Цена ---
             price_elem = soup.find("span", class_="price")
             price = None
             if price_elem:
@@ -55,11 +50,9 @@ class RealtByParser:
                 if price_match:
                     price = int(price_match.group(1).replace(" ", ""))
             
-            # --- Адрес ---
             address_elem = soup.find("div", class_="address")
             address = address_elem.text.strip() if address_elem else ""
             
-            # --- Площадь ---
             area_elem = soup.find("span", class_="area")
             area = None
             if area_elem:
@@ -81,7 +74,6 @@ class RealtByParser:
             return None
     
     def parse_listing_page(self, url: str) -> List[Dict]:
-        """Парсит страницу со списком"""
         offers = []
         
         try:
@@ -89,7 +81,6 @@ class RealtByParser:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
-            # Пробуем разные классы для карточек
             cards = soup.find_all("div", class_="listing-card")
             if not cards:
                 cards = soup.find_all("div", class_="listing-item")
@@ -113,7 +104,6 @@ class RealtByParser:
         return offers
     
     def run(self) -> List[Dict]:
-        """Запускает парсинг"""
         all_offers = []
         
         for page in range(1, PARSER["max_pages"] + 1):
