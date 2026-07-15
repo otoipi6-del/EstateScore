@@ -6,7 +6,7 @@ FILTERS = {
     "object_type": "plot",          # plot (участок)
     "region": "belarus",            # Вся Беларусь!
     "area_min": 5,                 # Минимальная площадь (соток)
-    "area_max": 20,                 # Максимальная площадь (соток)
+    "area_max": 100,                 # Максимальная площадь (соток)
     "price_max": None,              # Максимальная цена
     "communications": ["газ", "вода", "электричество"],
     "plot_type": None,            # ИЖС
