@@ -15,7 +15,8 @@ class RealtByParser:
     """Парсер для Realt.by — земельные участки (все регионы)"""
     
     BASE_URL = "https://realt.by"
-    SEARCH_URL = "https://realt.by/real-estate/"
+    # ИСПРАВЛЕНАЯ ССЫЛКА НА ПОИСК УЧАСТКОВ
+    SEARCH_URL = "https://realt.by/real-estate/for-sale/plots/"
     
     # Карта регионов Realt.by
     REGION_CODES = {
@@ -25,7 +26,7 @@ class RealtByParser:
         "gomelskaya": "gomelskaya",
         "grodnenskaya": "grodnenskaya",
         "mogilevskaya": "mogilevskaya",
-        "belarus": None,  # Все регионы
+        "belarus": None,
     }
     
     def __init__(self):
@@ -37,28 +38,23 @@ class RealtByParser:
         """Формирует URL для поиска с фильтрами"""
         params = {
             "page": page,
-            "type": FILTERS["offer_type"],
-            "object": FILTERS["object_type"],
-            "area[min]": FILTERS["area_min"],
-            "area[max]": FILTERS["area_max"],
             "sort": FILTERS["sort"],
         }
+        
+        # Добавляем фильтры в параметры
+        if FILTERS.get("price_max"):
+            params["price[max]"] = FILTERS["price_max"]
+        if FILTERS.get("area_min"):
+            params["area[min]"] = FILTERS["area_min"]
+        if FILTERS.get("area_max"):
+            params["area[max]"] = FILTERS["area_max"]
         
         # Добавляем регион только если не "belarus"
         region = FILTERS.get("region")
         if region and region != "belarus" and region in self.REGION_CODES:
             params["region"] = self.REGION_CODES[region]
         
-        if FILTERS.get("price_max"):
-            params["price[max]"] = FILTERS["price_max"]
-        
         return f"{self.SEARCH_URL}?{urlencode(params)}"
-    
-    def parse_coordinates(self, address: str) -> Optional[tuple]:
-        """Пытается извлечь координаты из адреса или описания (заглушка)"""
-        # В реальности здесь нужен геокодер (Яндекс.Карты или Nominatim)
-        # Для MVP возвращаем None
-        return None
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
         """Парсит детальную информацию из карточки объявления"""
@@ -79,13 +75,6 @@ class RealtByParser:
             # --- Адрес ---
             address_elem = soup.find("div", class_="address")
             address = address_elem.text.strip() if address_elem else ""
-            
-            # --- Определяем регион из адреса ---
-            region = "other"
-            for key, code in self.REGION_CODES.items():
-                if code and code.lower() in address.lower():
-                    region = key
-                    break
             
             # --- Площадь ---
             area_elem = soup.find("span", class_="area")
@@ -130,10 +119,8 @@ class RealtByParser:
                 "url": card_url,
                 "price": price,
                 "address": address,
-                "region": region,
+                "region": "belarus",
                 "area": area,
-                "lat": None,  # Для карты (заполняется через геокодер)
-                "lng": None,
                 "description": description,
                 "specifications": specs,
                 "communications_ok": communications_ok,
@@ -154,7 +141,10 @@ class RealtByParser:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
-            cards = soup.find_all("div", class_="listing-item")
+            # Ищем карточки на странице
+            cards = soup.find_all("div", class_="listing-card")
+            if not cards:
+                cards = soup.find_all("div", class_="listing-item")
             
             for card in cards:
                 link_elem = card.find("a", class_="link")
