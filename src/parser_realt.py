@@ -12,10 +12,21 @@ from config import FILTERS, HEADERS, PARSER
 
 
 class RealtByParser:
-    """Парсер для Realt.by — земельные участки"""
+    """Парсер для Realt.by — земельные участки (все регионы)"""
     
     BASE_URL = "https://realt.by"
     SEARCH_URL = "https://realt.by/real-estate/"
+    
+    # Карта регионов Realt.by
+    REGION_CODES = {
+        "minskaya": "minskaya",
+        "brestskaya": "brestskaya",
+        "vitebskaya": "vitebskaya",
+        "gomelskaya": "gomelskaya",
+        "grodnenskaya": "grodnenskaya",
+        "mogilevskaya": "mogilevskaya",
+        "belarus": None,  # Все регионы
+    }
     
     def __init__(self):
         self.session = requests.Session()
@@ -28,15 +39,26 @@ class RealtByParser:
             "page": page,
             "type": FILTERS["offer_type"],
             "object": FILTERS["object_type"],
-            "region": FILTERS["region"],
             "area[min]": FILTERS["area_min"],
             "area[max]": FILTERS["area_max"],
             "sort": FILTERS["sort"],
         }
+        
+        # Добавляем регион только если не "belarus"
+        region = FILTERS.get("region")
+        if region and region != "belarus" and region in self.REGION_CODES:
+            params["region"] = self.REGION_CODES[region]
+        
         if FILTERS.get("price_max"):
             params["price[max]"] = FILTERS["price_max"]
         
         return f"{self.SEARCH_URL}?{urlencode(params)}"
+    
+    def parse_coordinates(self, address: str) -> Optional[tuple]:
+        """Пытается извлечь координаты из адреса или описания (заглушка)"""
+        # В реальности здесь нужен геокодер (Яндекс.Карты или Nominatim)
+        # Для MVP возвращаем None
+        return None
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
         """Парсит детальную информацию из карточки объявления"""
@@ -57,6 +79,13 @@ class RealtByParser:
             # --- Адрес ---
             address_elem = soup.find("div", class_="address")
             address = address_elem.text.strip() if address_elem else ""
+            
+            # --- Определяем регион из адреса ---
+            region = "other"
+            for key, code in self.REGION_CODES.items():
+                if code and code.lower() in address.lower():
+                    region = key
+                    break
             
             # --- Площадь ---
             area_elem = soup.find("span", class_="area")
@@ -101,7 +130,10 @@ class RealtByParser:
                 "url": card_url,
                 "price": price,
                 "address": address,
+                "region": region,
                 "area": area,
+                "lat": None,  # Для карты (заполняется через геокодер)
+                "lng": None,
                 "description": description,
                 "specifications": specs,
                 "communications_ok": communications_ok,
