@@ -6,7 +6,7 @@ FILTERS = {
     "object_type": "plot",          # plot (участок)
     "region": "belarus",            # Вся Беларусь!
     "area_min": 10,                 # Минимальная площадь (соток)
-    "area_max": 10,                 # Максимальная площадь (соток)
+    "area_max": 20,                 # Максимальная площадь (соток)
     "price_max": None,              # Максимальная цена
     "communications": ["газ", "вода", "электричество"],
     "plot_type": "izhs",            # ИЖС
@@ -15,7 +15,7 @@ FILTERS = {
 
 # ===== НАСТРОЙКИ АНАЛИЗА =====
 ANALYSIS = {
-    "max_price_per_are": 5000,      # Макс. цена за сотку (BYN)
+    "max_price_per_are": 10000,      # Макс. цена за сотку (BYN)
     "min_discount_percent": 15,     # Минимальный дисконт для метки "выгодный"
 }
 
