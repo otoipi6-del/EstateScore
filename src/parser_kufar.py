@@ -3,88 +3,51 @@
 import time
 import re
 from typing import List, Dict, Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
+import requests
 from bs4 import BeautifulSoup
 
 from config import FILTERS, HEADERS, PARSER
 
 
 class KufarParser:
-    """Парсер для Kufar.by — земельные участки (с Selenium)"""
+    """Парсер для Kufar.by — земельные участки"""
     
     BASE_URL = "https://kufar.by"
+    # РАБОЧИЙ URL ДЛЯ СТАТИЧЕСКОЙ ВЕРСИИ
     SEARCH_URL = "https://kufar.by/l/r~belarus/zemelnye-uchastki"
     
-    REGION_CODES = {
-        "minskaya": "minskaya",
-        "brestskaya": "brestskaya",
-        "vitebskaya": "vitebskaya",
-        "gomelskaya": "gomelskaya",
-        "grodnenskaya": "grodnenskaya",
-        "mogilevskaya": "mogilevskaya",
-        "belarus": "belarus",
-    }
-    
     def __init__(self):
-        self.driver = None
+        self.session = requests.Session()
+        self.session.headers.update(HEADERS)
         self.offers = []
     
-    def _init_driver(self):
-        """Инициализирует драйвер Selenium"""
-        options = Options()
-        options.add_argument("--headless")  # Без графического интерфейса
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument(f"user-agent={HEADERS['User-Agent']}")
-        
-        self.driver = webdriver.Chrome(options=options)
-        self.driver.implicitly_wait(10)
-    
     def build_search_url(self, page: int = 1) -> str:
-        """Формирует URL для поиска с фильтрами"""
-        params = []
-        
-        if FILTERS.get("offer_type") == "sale":
-            params.append("cd=1")
+        """Формирует URL для поиска"""
+        params = {
+            "cd": "1",           # продажа
+            "p": page,           # страница
+            "sort": "lst",       # новые сверху
+        }
         
         if FILTERS.get("area_min"):
-            params.append(f"sa={FILTERS['area_min']}")
+            params["sa"] = FILTERS["area_min"]
         if FILTERS.get("area_max"):
-            params.append(f"ea={FILTERS['area_max']}")
+            params["ea"] = FILTERS["area_max"]
         
-        params.append("sort=lst")
-        params.append(f"p={page}")
-        params.append("cm=13010")
-        
-        region = FILTERS.get("region")
-        if region and region != "belarus" and region in self.REGION_CODES:
-            region_code = self.REGION_CODES[region]
-            search_url = f"https://kufar.by/l/r~{region_code}/zemelnye-uchastki"
-        else:
-            search_url = self.SEARCH_URL
-        
-        query_string = "&".join(params)
-        return f"{search_url}?{query_string}"
+        return f"{self.SEARCH_URL}?{urlencode(params)}"
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
-        """Парсит детальную информацию из карточки объявления"""
+        """Парсит карточку объявления"""
         try:
-            # Используем requests для скорости (карточки статические)
-            import requests
-            response = requests.get(card_url, headers=HEADERS, timeout=PARSER["timeout"])
+            response = self.session.get(card_url, timeout=PARSER["timeout"])
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
             # --- Цена ---
-            price = None
             price_elem = soup.find("span", class_="price")
+            price = None
             if price_elem:
                 price_text = price_elem.text.strip()
                 price_match = re.search(r'([\d\s]+)', price_text)
@@ -92,10 +55,8 @@ class KufarParser:
                     price = int(price_match.group(1).replace(" ", ""))
             
             # --- Адрес ---
-            address = ""
             address_elem = soup.find("div", class_="address")
-            if address_elem:
-                address = address_elem.text.strip()
+            address = address_elem.text.strip() if address_elem else ""
             
             # --- Площадь ---
             area = None
@@ -110,73 +71,29 @@ class KufarParser:
                             area = float(area_match.group(1))
                             break
             
-            # --- Описание ---
-            description = ""
-            desc_elem = soup.find("div", class_="description")
-            if desc_elem:
-                description = desc_elem.text.strip()
-            
-            # --- Характеристики ---
-            specifications = {}
-            param_elems = soup.find_all("div", class_="param")
-            for elem in param_elems:
-                label = elem.find("span", class_="label")
-                value = elem.find("span", class_="value")
-                if label and value:
-                    specifications[label.text.strip()] = value.text.strip()
-            
-            # --- Проверка коммуникаций ---
-            full_text = (description + " " + " ".join(specifications.values())).lower()
-            communications_ok = all(
-                comm.lower() in full_text
-                for comm in FILTERS.get("communications", [])
-            )
-            
-            # --- Проверка типа участка (ИЖС) ---
-            is_izhs = "ижс" in full_text or "индивидуальное жилищное" in full_text
-            plot_type_ok = FILTERS.get("plot_type") != "izhs" or is_izhs
-            
-            if not communications_ok or not plot_type_ok:
-                return None
-            
             return {
                 "source": "kufar.by",
                 "url": card_url,
                 "price": price,
                 "address": address,
-                "region": "belarus",
                 "area": area,
-                "description": description,
-                "specifications": specifications,
-                "communications_ok": communications_ok,
-                "is_izhs": is_izhs,
-                "raw_text": full_text,
+                "region": "belarus",
             }
             
         except Exception as e:
-            print(f"  Ошибка при парсинге {card_url}: {e}")
+            print(f"  Ошибка: {e}")
             return None
     
     def parse_listing_page(self, url: str) -> List[Dict]:
-        """Парсит страницу со списком объявлений через Selenium"""
+        """Парсит страницу со списком"""
         offers = []
         
         try:
-            if not self.driver:
-                self._init_driver()
+            response = self.session.get(url, timeout=PARSER["timeout"])
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "lxml")
             
-            self.driver.get(url)
-            
-            # Ждём загрузки карточек
-            WebDriverWait(self.driver, 15).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "listing-item"))
-            )
-            
-            # Получаем HTML после загрузки JavaScript
-            html = self.driver.page_source
-            soup = BeautifulSoup(html, "lxml")
-            
-            # Ищем карточки
+            # Пробуем разные классы
             cards = soup.find_all("div", class_="listing-item")
             if not cards:
                 cards = soup.find_all("div", class_="listing-card")
@@ -203,17 +120,13 @@ class KufarParser:
         """Запускает парсинг"""
         all_offers = []
         
-        try:
-            for page in range(1, PARSER["max_pages"] + 1):
-                print(f"  Страница {page}...")
-                url = self.build_search_url(page)
-                page_offers = self.parse_listing_page(url)
-                all_offers.extend(page_offers)
-                print(f"    Найдено {len(page_offers)} объявлений")
-                time.sleep(PARSER["delay_between_requests"])
-        finally:
-            if self.driver:
-                self.driver.quit()
+        for page in range(1, PARSER["max_pages"] + 1):
+            print(f"  Страница {page}...")
+            url = self.build_search_url(page)
+            page_offers = self.parse_listing_page(url)
+            all_offers.extend(page_offers)
+            print(f"    Найдено {len(page_offers)} объявлений")
+            time.sleep(PARSER["delay_between_requests"])
         
         self.offers = all_offers
         return all_offers
