@@ -12,11 +12,20 @@ from config import FILTERS, HEADERS, PARSER
 
 
 class KufarParser:
-    """Парсер для Kufar.by — земельные участки"""
+    """Парсер для Kufar.by — земельные участки (все регионы)"""
     
     BASE_URL = "https://kufar.by"
-    # ИСПРАВЛЕНО: правильный URL с /l/ в пути
-    SEARCH_URL = "https://kufar.by/l/r~minskaya/zemelnye-uchastki"
+    SEARCH_URL = "https://kufar.by/l/r~belarus/zemelnye-uchastki"  # Вся Беларусь
+    
+    REGION_CODES = {
+        "minskaya": "minskaya",
+        "brestskaya": "brestskaya",
+        "vitebskaya": "vitebskaya",
+        "gomelskaya": "gomelskaya",
+        "grodnenskaya": "grodnenskaya",
+        "mogilevskaya": "mogilevskaya",
+        "belarus": "belarus",
+    }
     
     def __init__(self):
         self.session = requests.Session()
@@ -27,29 +36,29 @@ class KufarParser:
         """Формирует URL для поиска с фильтрами"""
         params = []
         
-        # Тип сделки: продажа
         if FILTERS.get("offer_type") == "sale":
             params.append("cd=1")
         
-        # Площадь (сотки)
-        # Kufar использует sa (от) и ea (до)
         if FILTERS.get("area_min"):
             params.append(f"sa={FILTERS['area_min']}")
         if FILTERS.get("area_max"):
             params.append(f"ea={FILTERS['area_max']}")
         
-        # Сортировка по дате (новые сверху)
-        # ИСПРАВЛЕНО: было sort=1st, теперь sort=lst
         params.append("sort=lst")
-        
-        # Пагинация
         params.append(f"p={page}")
-        
-        # Тип участка: ИЖС (код 13010)
         params.append("cm=13010")
         
+        # Регион (если не вся Беларусь)
+        region = FILTERS.get("region")
+        if region and region != "belarus" and region in self.REGION_CODES:
+            # Для Kufar регион добавляется в URL
+            region_code = self.REGION_CODES[region]
+            search_url = f"https://kufar.by/l/r~{region_code}/zemelnye-uchastki"
+        else:
+            search_url = self.SEARCH_URL
+        
         query_string = "&".join(params)
-        return f"{self.SEARCH_URL}?{query_string}"
+        return f"{search_url}?{query_string}"
     
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
         """Парсит детальную информацию из карточки объявления"""
@@ -63,7 +72,6 @@ class KufarParser:
             price_elem = soup.find("span", class_="price")
             if price_elem:
                 price_text = price_elem.text.strip()
-                # Убираем всё, кроме цифр
                 price_match = re.search(r'([\d\s]+)', price_text)
                 if price_match:
                     price = int(price_match.group(1).replace(" ", ""))
@@ -73,6 +81,13 @@ class KufarParser:
             address_elem = soup.find("div", class_="address")
             if address_elem:
                 address = address_elem.text.strip()
+            
+            # --- Регион ---
+            region = "other"
+            for key, code in self.REGION_CODES.items():
+                if code and code.lower() in address.lower():
+                    region = key
+                    break
             
             # --- Площадь ---
             area = None
@@ -93,7 +108,7 @@ class KufarParser:
             if desc_elem:
                 description = desc_elem.text.strip()
             
-            # --- Характеристики (все параметры) ---
+            # --- Характеристики ---
             specifications = {}
             param_elems = soup.find_all("div", class_="param")
             for elem in param_elems:
@@ -102,7 +117,7 @@ class KufarParser:
                 if label and value:
                     specifications[label.text.strip()] = value.text.strip()
             
-            # --- Проверка наличия обязательных коммуникаций ---
+            # --- Проверка коммуникаций ---
             full_text = (description + " " + " ".join(specifications.values())).lower()
             communications_ok = all(
                 comm.lower() in full_text
@@ -113,7 +128,6 @@ class KufarParser:
             is_izhs = "ижс" in full_text or "индивидуальное жилищное" in full_text
             plot_type_ok = FILTERS.get("plot_type") != "izhs" or is_izhs
             
-            # Если не подходит по критериям — пропускаем
             if not communications_ok or not plot_type_ok:
                 return None
             
@@ -122,7 +136,10 @@ class KufarParser:
                 "url": card_url,
                 "price": price,
                 "address": address,
+                "region": region,
                 "area": area,
+                "lat": None,
+                "lng": None,
                 "description": description,
                 "specifications": specifications,
                 "communications_ok": communications_ok,
@@ -143,7 +160,6 @@ class KufarParser:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
-            # Находим все карточки на странице
             cards = soup.find_all("div", class_="listing-item")
             
             for card in cards:
@@ -157,7 +173,6 @@ class KufarParser:
                 if offer_data:
                     offers.append(offer_data)
                 
-                # Небольшая пауза, чтобы не перегружать сервер
                 time.sleep(PARSER["delay_between_requests"] / 2)
                 
         except Exception as e:
@@ -166,7 +181,7 @@ class KufarParser:
         return offers
     
     def run(self) -> List[Dict]:
-        """Запускает парсинг по всем страницам"""
+        """Запускает парсинг"""
         all_offers = []
         
         for page in range(1, PARSER["max_pages"] + 1):
