@@ -39,8 +39,8 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
-# РАБОЧИЕ ССЫЛКИ НА API
+# ПРЯМЫЕ ССЫЛКИ НА API
 URLS = {
     "realt": "https://realt.by/api/v1/search/real-estate/?type=sale&object=plot&page=",
-    "kufar": "https://re.kufar.by/l/minsk/kupit/uchastok",
+    "kufar": "https://kufar.by/api/search?query=земельные%20участки&region=belarus&page=",
 }
