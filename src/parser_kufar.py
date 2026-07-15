@@ -5,17 +5,20 @@ import re
 from typing import List, Dict, Optional
 from urllib.parse import urljoin
 
-import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 
 from config import FILTERS, HEADERS, PARSER
 
 
 class KufarParser:
-    """Парсер для Kufar.by — земельные участки (все регионы)"""
+    """Парсер для Kufar.by — земельные участки (с Selenium)"""
     
     BASE_URL = "https://kufar.by"
-    # ИСПРАВЛЕННАЯ ССЫЛКА НА ПОИСК УЧАСТКОВ
     SEARCH_URL = "https://kufar.by/l/r~belarus/zemelnye-uchastki"
     
     REGION_CODES = {
@@ -29,9 +32,20 @@ class KufarParser:
     }
     
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update(HEADERS)
+        self.driver = None
         self.offers = []
+    
+    def _init_driver(self):
+        """Инициализирует драйвер Selenium"""
+        options = Options()
+        options.add_argument("--headless")  # Без графического интерфейса
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument(f"user-agent={HEADERS['User-Agent']}")
+        
+        self.driver = webdriver.Chrome(options=options)
+        self.driver.implicitly_wait(10)
     
     def build_search_url(self, page: int = 1) -> str:
         """Формирует URL для поиска с фильтрами"""
@@ -47,9 +61,8 @@ class KufarParser:
         
         params.append("sort=lst")
         params.append(f"p={page}")
-        params.append("cm=13010")  # Код для земельных участков
+        params.append("cm=13010")
         
-        # Регион (если не вся Беларусь)
         region = FILTERS.get("region")
         if region and region != "belarus" and region in self.REGION_CODES:
             region_code = self.REGION_CODES[region]
@@ -63,7 +76,9 @@ class KufarParser:
     def parse_offer_card(self, card_url: str) -> Optional[Dict]:
         """Парсит детальную информацию из карточки объявления"""
         try:
-            response = self.session.get(card_url, timeout=PARSER["timeout"])
+            # Используем requests для скорости (карточки статические)
+            import requests
+            response = requests.get(card_url, headers=HEADERS, timeout=PARSER["timeout"])
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "lxml")
             
@@ -143,18 +158,28 @@ class KufarParser:
             return None
     
     def parse_listing_page(self, url: str) -> List[Dict]:
-        """Парсит страницу со списком объявлений"""
+        """Парсит страницу со списком объявлений через Selenium"""
         offers = []
         
         try:
-            response = self.session.get(url, timeout=PARSER["timeout"])
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "lxml")
+            if not self.driver:
+                self._init_driver()
             
-            # Ищем карточки на странице
-            cards = soup.find_all("div", class_="listing-card")
+            self.driver.get(url)
+            
+            # Ждём загрузки карточек
+            WebDriverWait(self.driver, 15).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "listing-item"))
+            )
+            
+            # Получаем HTML после загрузки JavaScript
+            html = self.driver.page_source
+            soup = BeautifulSoup(html, "lxml")
+            
+            # Ищем карточки
+            cards = soup.find_all("div", class_="listing-item")
             if not cards:
-                cards = soup.find_all("div", class_="listing-item")
+                cards = soup.find_all("div", class_="listing-card")
             
             for card in cards:
                 link_elem = card.find("a", class_="link")
@@ -178,13 +203,17 @@ class KufarParser:
         """Запускает парсинг"""
         all_offers = []
         
-        for page in range(1, PARSER["max_pages"] + 1):
-            print(f"  Страница {page}...")
-            url = self.build_search_url(page)
-            page_offers = self.parse_listing_page(url)
-            all_offers.extend(page_offers)
-            print(f"    Найдено {len(page_offers)} объявлений")
-            time.sleep(PARSER["delay_between_requests"])
+        try:
+            for page in range(1, PARSER["max_pages"] + 1):
+                print(f"  Страница {page}...")
+                url = self.build_search_url(page)
+                page_offers = self.parse_listing_page(url)
+                all_offers.extend(page_offers)
+                print(f"    Найдено {len(page_offers)} объявлений")
+                time.sleep(PARSER["delay_between_requests"])
+        finally:
+            if self.driver:
+                self.driver.quit()
         
         self.offers = all_offers
         return all_offers
